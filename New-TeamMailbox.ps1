@@ -70,7 +70,7 @@ New-Mailbox -Shared -Name $teamMailboxName -Alias $teamMailboxAlias -Organizatio
 # Create Full Access group
 $groupName = "$($groupPrefix)$($teamMailboxAlias)$($groupFullAccessSuffix)"
 $notes = "FullAccess for mailbox: $($teamMailboxName)"
-$primaryEmail = "$($groupName)@bdr.de"
+$primaryEmail = "$($groupName)@mcsmemail.de"
 
 Write-Host "Creating new FullAccess Group: $($groupName)"
 if(($groupFullAccessMembers | Measure-Object).Count -ne 0) {
@@ -92,7 +92,7 @@ Add-MailboxPermission -Identity $teamMailboxSmtpAddress -User $primaryEmail -Acc
 # Create Send As group
 $groupName = "$($groupPrefix)$($teamMailboxAlias)$($groupSendAsSuffix)"
 $notes = "SendAs for mailbox: $($teamMailboxName)"
-$primaryEmail = "$($groupName)@bdr.de"
+$primaryEmail = "$($groupName)@mcsmemail.de"
 
 Write-Host "Creating new SendAs Group: $($groupName)"
 if(($groupSendAsMember | Measure-Object).Count -ne 0) {
