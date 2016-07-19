@@ -22,91 +22,167 @@
  
     .NOTES 
     Requirements 
-    - Windows Server 2012 R2  
+    - Windows Server 2012 R2 
+    - Exchange 2013/2016 Management Shell (aka EMS)
+
     
     Revision History 
     -------------------------------------------------------------------------------- 
     1.0 Initial community release 
-
-    Parameters are not yet supported.
-
    
+    .PARAMETER TeamMailboxName
+    Name attribute of the new team mailbox
+
+    .PARAMETER TeamMailboxDisplayName
+    Display name attribute of the new team mailbox
+
+    .PARAMETER TeamMailboxAlias
+    Alias attribute of the new team mailbox
+
+    .PARAMETER TeamMailboxSmtpAddress
+    Primary SMTP address attribute the new team mailbox
+
+    .PARAMETER DepartmentPrefix
+    Department prefix for automatically generated security groups (optional)
+
+    .PARAMETER GroupFullAccessMembers
+    String array containing full access members
+    
+    .PARAMETER GroupFullAccessMembers
+    String array containing send as members
+
     .EXAMPLE 
-    .\New-TeamMailbox.ps1
+    Create a new team mailbox, empty full access and empty send-as security groups
+
+    .\New-TeamMailbox.ps1 -TeamMailboxName "TM-Exchange Admins" -TeamMailboxDisplayName "Exchange Admins" -TeamMailboxAlias "TM-ExchangeAdmins" -TeamMailboxSmtpAddress "ExchangeAdmins@mcsmemail.de" -DepartmentPrefix "IT"
 #> 
+param (
+    [parameter(Mandatory=$true,HelpMessage='Team Mailbox Name')]
+        [string]$TeamMailboxName,
+    [parameter(Mandatory=$true,HelpMessage='Team Mailbox Display Name')]
+        [string]$TeamMailboxDisplayName,
+    [parameter(Mandatory=$true,HelpMessage='Team Mailbox Alias')]
+        [string]$TeamMailboxAlias,
+    [parameter(Mandatory=$true,HelpMessage='Team Mailbox Email Address')]
+        [string]$TeamMailboxSmtpAddress,
+    [parameter(Mandatory=$false,HelpMessage='Department prefix for group name')] 
+        [string]$DepartmentPrefix = "",
+    [parameter(Mandatory=$false,HelpMessage='Full access group members')]
+        $GroupFullAccessMembers = @(''),
+    [parameter(Mandatory=$false,HelpMessage='Send as group members')]
+        $GroupSendAsMember = @('')
+)
 
-# Team mailbox parameters
-$teamMailboxName = 'MB-COM-Marketing'
-$teamMailboxDisplayName = 'Marketing'
-$teamMailboxAlias = 'MB-COM-Marketing'
-$teamMailboxSmtpAddress = 'marketing@mcsmemail.de'
-$departmentPrefix = "COM" # e.g. COM
+# Script Path
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Team mailbox target OU
-$teamMailboxTargetOU = 'mcsmemail.de/ORG/IT/SharedMailboxes'
 
-# Group members
-$groupFullAccessMembers = @('johndoe','janedoe') 
-$groupSendAsMember = @()
+if(Test-Path "$($scriptPath)\Settings.xml") {
+    # Load Script settings
+    [xml]$Config = Get-Content -Path "$($scriptPath)\Settings.xml"
+    
+    Write-Verbose 'Loading script settings'
+    
+    # Group settings
+    $groupPrefix = $Config.Settings.GroupSettings.Prefix
+    $groupSendAsSuffix = $Config.Settings.GroupSettings.SendAsSuffix
+    $groupFullAccessSuffix = $Config.Settings.GroupSettings.FullAccessSuffix
+    $groupTargetOU = $Config.Settings.GroupSettings.TargetOU
+    $groupDomain = $Config.Settings.GroupSettings.Domain
+    
+    # Team mailbox settings
+    $teamMailboxTargetOU = $Config.Settings.AccountSettings.TargetOU
 
-# Permission group parameters
-$groupPrefix = 'sec_'
-$groupSendAsSuffix = '_SA'
-$groupFullAccessSuffix = '_FA'
-$groupTargetOU = 'mcsmemail.de/ORG/IT/Groups'
+    # General settings
+    $sleepSeconds = $Config.Settings.GeneralSettings.Sleep
 
-# add department prefix, if configured
-if($departmentPrefix -ne '') {
-    # Change pattern as needed
-    $groupPrefix = "$($groupPrefix)$($departmentPrefix)_"
+    Write-Verbose 'Script settings loaded'    
+}
+else {
+    Write-Error 'Script settings file settings.xml missing'
+    exit 99
 }
 
-# additional variables
-$sleepSeconds = 10
+# add department prefix to group prefix, if configured
+if($DepartmentPrefix -ne '') {
+    # Change pattern as needed
+    $groupPrefix = "$($groupPrefix)$($DepartmentPrefix)_"
+}
 
 # Create shared team mailbox
-New-Mailbox -Shared -Name $teamMailboxName -Alias $teamMailboxAlias -OrganizationalUnit $teamMailboxTargetOU -PrimarySmtpAddress $teamMailboxSmtpAddress -DisplayName $teamMailboxDisplayName
+Write-Verbose "New-Mailbox -Shared -Name $($TeamMailboxName) -Alias $($TeamMailboxAlias)"
+
+# New-Mailbox -Shared -Name $TeamMailboxName -Alias $TeamMailboxAlias -OrganizationalUnit $teamMailboxTargetOU -PrimarySmtpAddress $TeamMailboxSmtpAddress -DisplayName $TeamMailboxDisplayName | Out-Null
 
 # Create Full Access group
-$groupName = "$($groupPrefix)$($teamMailboxAlias)$($groupFullAccessSuffix)"
-$notes = "FullAccess for mailbox: $($teamMailboxName)"
-$primaryEmail = "$($groupName)@mcsmemail.de"
+$groupName = "$($groupPrefix)$($TeamMailboxAlias)$($groupFullAccessSuffix)"
+$notes = "FullAccess for mailbox: $($TeamMailboxName)"
+$primaryEmail = "$($groupName)@$($groupDomain)"
 
 Write-Host "Creating new FullAccess Group: $($groupName)"
-if(($groupFullAccessMembers | Measure-Object).Count -ne 0) {
+
+Write-Verbose "New-DistributionGroup -Name $($groupName) -Type Security -OrganizationalUnit $($groupTargetOU) -PrimarySmtpAddress $($primaryEmail)"
+
+if(($GroupFullAccessMembers | Measure-Object).Count -ne 0) {
+
     Write-Host "Creating FullAccess group and adding members: $($groupName)"
-    New-DistributionGroup -Name $groupName -Type Security -OrganizationalUnit $groupTargetOU -PrimarySmtpAddress $primaryEmail -Members $groupFullAccessMembers -Notes $notes 
-    Start-Sleep -Seconds 5
+
+    New-DistributionGroup -Name $groupName -Type Security -OrganizationalUnit $groupTargetOU -PrimarySmtpAddress $primaryEmail -Members $GroupFullAccessMembers -Notes $notes | Out-Null
+
+    Start-Sleep -Seconds $sleepSeconds
+
     Set-DistributionGroup -Identity $primaryEmail -HiddenFromAddressListsEnabled $true
 }
 else {
+
     Write-Host "Creating empty FullAccess group: $($groupName)"
-    New-DistributionGroup -Name $groupName -Type Security -OrganizationalUnit $groupTargetOU -PrimarySmtpAddress $primaryEmail -Notes $notes
-    Start-Sleep -Seconds 5
+
+    New-DistributionGroup -Name $groupName -Type Security -OrganizationalUnit $groupTargetOU -PrimarySmtpAddress $primaryEmail -Notes $notes | Out-Null
+
+    Start-Sleep -Seconds $sleepSeconds
+    
     Set-DistributionGroup -Identity $primaryEmail -HiddenFromAddressListsEnabled $true
 }
 
 # add full access group
-Add-MailboxPermission -Identity $teamMailboxSmtpAddress -User $primaryEmail -AccessRights FullAccess -InheritanceType all
+
+Write-Verbose "Add-MailboxPermission -Identity $($TeamMailboxSmtpAddress) -User $($primaryEmail)"
+
+Add-MailboxPermission -Identity $TeamMailboxSmtpAddress -User $primaryEmail -AccessRights FullAccess -InheritanceType all | Out-Null
 
 # Create Send As group
-$groupName = "$($groupPrefix)$($teamMailboxAlias)$($groupSendAsSuffix)"
-$notes = "SendAs for mailbox: $($teamMailboxName)"
-$primaryEmail = "$($groupName)@mcsmemail.de"
+$groupName = "$($groupPrefix)$($TeamMailboxAlias)$($groupSendAsSuffix)"
+$notes = "SendAs for mailbox: $($TeamMailboxName)"
+$primaryEmail = "$($groupName)@$($groupDomain)"
 
 Write-Host "Creating new SendAs Group: $($groupName)"
-if(($groupSendAsMember | Measure-Object).Count -ne 0) {
+
+Write-Verbose "New-DistributionGroup -Name $($groupName) -Type Security -OrganizationalUnit $($groupTargetOU) -PrimarySmtpAddress $($primaryEmail)"
+
+if(($GroupSendAsMember | Measure-Object).Count -ne 0) {
+
     Write-Host "Creating SendAs group and adding members: $($groupName)"
-    New-DistributionGroup -Name $groupName -Type Security -OrganizationalUnit $groupTargetOU -PrimarySmtpAddress $primaryEmail -Members $groupSendAsMember -Notes $notes
+
+    New-DistributionGroup -Name $groupName -Type Security -OrganizationalUnit $groupTargetOU -PrimarySmtpAddress $primaryEmail -Members $GroupSendAsMember -Notes $notes | Out-Null
+
     Start-Sleep -Seconds $sleepSeconds
+
     Set-DistributionGroup -Identity $primaryEmail -HiddenFromAddressListsEnabled $true
 }
 else {
+
     Write-Host "Not empty SendAs group: $($groupName)"
-    New-DistributionGroup -Name $groupName -Type Security -OrganizationalUnit $groupTargetOU -PrimarySmtpAddress $primaryEmail -Notes $notes
+
+    New-DistributionGroup -Name $groupName -Type Security -OrganizationalUnit $groupTargetOU -PrimarySmtpAddress $primaryEmail -Notes $notes | Out-Null
+
     Start-Sleep -Seconds $sleepSeconds
+
     Set-DistributionGroup -Identity $primaryEmail -HiddenFromAddressListsEnabled $true
 }
 
 # Add SendAs permission
-Add-ADPermission -Identity $teamMailboxName -User $primaryEmail -ExtendedRights "Send-As" 
+Write-Verbose "Add-ADPermission -Identity $($TeamMailboxName) -User $($groupName)"
+
+Add-ADPermission -Identity $TeamMailboxName -User $groupName -ExtendedRights "Send-As" | Out-Null
+
+Write-Host "Script finished. Team mailbox $($TeamMailboxName) created." 
