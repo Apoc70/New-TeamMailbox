@@ -66,11 +66,11 @@ param (
     [parameter(Mandatory=$true,HelpMessage='Team Mailbox Email Address')]
         [string]$TeamMailboxSmtpAddress,
     [parameter(Mandatory=$false,HelpMessage='Department prefix for group name')] 
-        [string]$DepartmentPrefix = "",
+        [string]$DepartmentPrefix = '',
     [parameter(Mandatory=$false,HelpMessage='Full access group members')]
-        $GroupFullAccessMembers = @(''),
+        $GroupFullAccessMembers = @(),
     [parameter(Mandatory=$false,HelpMessage='Send as group members')]
-        $GroupSendAsMember = @('')
+        $GroupSendAsMember = @()
 )
 
 # Script Path
@@ -112,7 +112,7 @@ if($DepartmentPrefix -ne '') {
 # Create shared team mailbox
 Write-Verbose "New-Mailbox -Shared -Name $($TeamMailboxName) -Alias $($TeamMailboxAlias)"
 
-# New-Mailbox -Shared -Name $TeamMailboxName -Alias $TeamMailboxAlias -OrganizationalUnit $teamMailboxTargetOU -PrimarySmtpAddress $TeamMailboxSmtpAddress -DisplayName $TeamMailboxDisplayName | Out-Null
+New-Mailbox -Shared -Name $TeamMailboxName -Alias $TeamMailboxAlias -OrganizationalUnit $teamMailboxTargetOU -PrimarySmtpAddress $TeamMailboxSmtpAddress -DisplayName $TeamMailboxDisplayName | Out-Null
 
 # Create Full Access group
 $groupName = "$($groupPrefix)$($TeamMailboxAlias)$($groupFullAccessSuffix)"
@@ -183,6 +183,6 @@ else {
 # Add SendAs permission
 Write-Verbose "Add-ADPermission -Identity $($TeamMailboxName) -User $($groupName)"
 
-Add-ADPermission -Identity $TeamMailboxName -User $groupName -ExtendedRights "Send-As" | Out-Null
+Add-ADPermission -Identity $TeamMailboxName -User $groupName -ExtendedRights 'Send-As' | Out-Null
 
 Write-Host "Script finished. Team mailbox $($TeamMailboxName) created." 
