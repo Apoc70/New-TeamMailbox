@@ -4,9 +4,10 @@
 		<Prefix>pre_</Prefix>
 		<SendAsSuffix>_SA</SendAsSuffix>
 		<FullAccessSuffix>_FA</FullAccessSuffix>
-<CalendarBookingSuffix>_CB</CalendarBookingSuffix>
+		<CalendarBookingSuffix>_CB</CalendarBookingSuffix>
 		<TargetOU>mcsmemail.de/IT/Groups/Mail</TargetOU>
 		<Domain>mcsmemail.de</Domain>
+		<Seperator>-</Seperator>
 	</GroupSettings>
 	<AccountSettings>
 		<TargetOU>mcsmemail.de/IT/SharedMailboxes</TargetOU>

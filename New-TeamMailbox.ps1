@@ -8,12 +8,12 @@
     THIS CODE IS MADE AVAILABLE AS IS, WITHOUT WARRANTY OF ANY KIND. THE ENTIRE  
     RISK OF THE USE OR THE RESULTS FROM THE USE OF THIS CODE REMAINS WITH THE USER. 
 
-    Version 1.0, 2016-07-08
+    Version 1.1, 2016-12-20
 
     Please send ideas, comments and suggestions to support@granikos.eu 
 
     .LINK 
-    More information can be found at http://www.granikos.eu/en/scripts
+    More information can be found at http://scripts.granikos.eu
 
     .DESCRIPTION 
     This scripts creates a new shared mailbox (aka team mailbox) and security groups
@@ -28,7 +28,8 @@
     
     Revision History 
     -------------------------------------------------------------------------------- 
-    1.0 Initial community release 
+    1.0 Initial community release
+    1.1 Prefix seperator added, PowerShell hygiene 
    
     .PARAMETER TeamMailboxName
     Name attribute of the new team mailbox
@@ -63,13 +64,13 @@ param (
         [string]$TeamMailboxDisplayName,
     [parameter(Mandatory=$true,HelpMessage='Team Mailbox Alias')]
         [string]$TeamMailboxAlias,
-    [parameter(Mandatory=$true,HelpMessage='Team Mailbox Email Address')]
-        [string]$TeamMailboxSmtpAddress,
-    [parameter(Mandatory=$false,HelpMessage='Department prefix for group name')] 
+    [parameter(Mandatory=$false)]
+        [string]$TeamMailboxSmtpAddress = '',
+    [parameter(Mandatory=$false)] 
         [string]$DepartmentPrefix = '',
-    [parameter(Mandatory=$false,HelpMessage='Full access group members')]
-        $GroupFullAccessMembers = @(),
-    [parameter(Mandatory=$false,HelpMessage='Send as group members')]
+    [parameter(Mandatory=$false)]
+        $GroupFullAccessMembers = @(''),
+    [parameter(Mandatory=$false)]
         $GroupSendAsMember = @()
 )
 
@@ -77,11 +78,11 @@ param (
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 
-if(Test-Path "$($scriptPath)\Settings.xml") {
+if(Test-Path -Path "$($scriptPath)\Settings.xml") {
     # Load Script settings
     [xml]$Config = Get-Content -Path "$($scriptPath)\Settings.xml"
     
-    Write-Verbose 'Loading script settings'
+    Write-Verbose -Message 'Loading script settings'
     
     # Group settings
     $groupPrefix = $Config.Settings.GroupSettings.Prefix
@@ -89,6 +90,7 @@ if(Test-Path "$($scriptPath)\Settings.xml") {
     $groupFullAccessSuffix = $Config.Settings.GroupSettings.FullAccessSuffix
     $groupTargetOU = $Config.Settings.GroupSettings.TargetOU
     $groupDomain = $Config.Settings.GroupSettings.Domain
+    $groupPrefixSeperator = $Config.Settings.GroupSettings.Seperator
     
     # Team mailbox settings
     $teamMailboxTargetOU = $Config.Settings.AccountSettings.TargetOU
@@ -96,32 +98,39 @@ if(Test-Path "$($scriptPath)\Settings.xml") {
     # General settings
     $sleepSeconds = $Config.Settings.GeneralSettings.Sleep
 
-    Write-Verbose 'Script settings loaded'    
+    Write-Verbose -Message 'Script settings loaded'    
 }
 else {
-    Write-Error 'Script settings file settings.xml missing'
+    Write-Error -Message 'Script settings file settings.xml missing'
     exit 99
 }
 
-# add department prefix to group prefix, if configured
+# Add department prefix to group prefix, if configured
 if($DepartmentPrefix -ne '') {
     # Change pattern as needed
-    $groupPrefix = "$($groupPrefix)$($DepartmentPrefix)_"
+    $groupPrefix = ('{0}{1}{2}' -f $groupPrefix, $DepartmentPrefix, $groupPrefixSeperator)
 }
 
 # Create shared team mailbox
-Write-Verbose "New-Mailbox -Shared -Name $($TeamMailboxName) -Alias $($TeamMailboxAlias)"
+Write-Verbose -Message "New-Mailbox -Shared -Name $($TeamMailboxName) -Alias $($TeamMailboxAlias)"
 
-New-Mailbox -Shared -Name $TeamMailboxName -Alias $TeamMailboxAlias -OrganizationalUnit $teamMailboxTargetOU -PrimarySmtpAddress $TeamMailboxSmtpAddress -DisplayName $TeamMailboxDisplayName | Out-Null
+if ($TeamMailboxSmtpAddress -ne '') 
+{
+    New-Mailbox -Shared -Name $TeamMailboxName -Alias $TeamMailboxAlias -OrganizationalUnit $teamMailboxTargetOU -PrimarySmtpAddress $TeamMailboxSmtpAddress -DisplayName $TeamMailboxDisplayName | Out-Null
+}
+else
+{
+    New-Mailbox -Shared -Name $TeamMailboxName -Alias $TeamMailboxAlias -OrganizationalUnit $teamMailboxTargetOU -DisplayName $TeamMailboxDisplayName | Out-Null
+}
 
 # Create Full Access group
-$groupName = "$($groupPrefix)$($TeamMailboxAlias)$($groupFullAccessSuffix)"
-$notes = "FullAccess for mailbox: $($TeamMailboxName)"
-$primaryEmail = "$($groupName)@$($groupDomain)"
+$groupName = ('{0}{1}{2}' -f $groupPrefix, $TeamMailboxAlias, $groupFullAccessSuffix)
+$notes = ('FullAccess for mailbox: {0}' -f $TeamMailboxName)
+$primaryEmail = ('{0}@{1}' -f $groupName, $groupDomain)
 
 Write-Host "Creating new FullAccess Group: $($groupName)"
 
-Write-Verbose "New-DistributionGroup -Name $($groupName) -Type Security -OrganizationalUnit $($groupTargetOU) -PrimarySmtpAddress $($primaryEmail)"
+Write-Verbose -Message "New-DistributionGroup -Name $($groupName) -Type Security -OrganizationalUnit $($groupTargetOU) -PrimarySmtpAddress $($primaryEmail)"
 
 if(($GroupFullAccessMembers | Measure-Object).Count -ne 0) {
 
@@ -131,6 +140,7 @@ if(($GroupFullAccessMembers | Measure-Object).Count -ne 0) {
 
     Start-Sleep -Seconds $sleepSeconds
 
+    # Hide FullAccess group from GAL
     Set-DistributionGroup -Identity $primaryEmail -HiddenFromAddressListsEnabled $true
 }
 else {
@@ -140,24 +150,25 @@ else {
     New-DistributionGroup -Name $groupName -Type Security -OrganizationalUnit $groupTargetOU -PrimarySmtpAddress $primaryEmail -Notes $notes | Out-Null
 
     Start-Sleep -Seconds $sleepSeconds
-    
+
+    # Hide FullAccess group from GAL    
     Set-DistributionGroup -Identity $primaryEmail -HiddenFromAddressListsEnabled $true
 }
 
-# add full access group
+# Add full access group to mailbox permissions
 
-Write-Verbose "Add-MailboxPermission -Identity $($TeamMailboxSmtpAddress) -User $($primaryEmail)"
+Write-Verbose -Message "Add-MailboxPermission -Identity $($TeamMailboxName) -User $($primaryEmail)"
 
-Add-MailboxPermission -Identity $TeamMailboxSmtpAddress -User $primaryEmail -AccessRights FullAccess -InheritanceType all | Out-Null
+Add-MailboxPermission -Identity $TeamMailboxName -User $primaryEmail -AccessRights FullAccess -InheritanceType all | Out-Null
 
 # Create Send As group
-$groupName = "$($groupPrefix)$($TeamMailboxAlias)$($groupSendAsSuffix)"
-$notes = "SendAs for mailbox: $($TeamMailboxName)"
-$primaryEmail = "$($groupName)@$($groupDomain)"
+$groupName = ('{0}{1}{2}' -f $groupPrefix, $TeamMailboxAlias, $groupSendAsSuffix)
+$notes = ('SendAs for mailbox: {0}' -f $TeamMailboxName)
+$primaryEmail = ('{0}@{1}' -f $groupName, $groupDomain)
 
 Write-Host "Creating new SendAs Group: $($groupName)"
 
-Write-Verbose "New-DistributionGroup -Name $($groupName) -Type Security -OrganizationalUnit $($groupTargetOU) -PrimarySmtpAddress $($primaryEmail)"
+Write-Verbose -Message "New-DistributionGroup -Name $($groupName) -Type Security -OrganizationalUnit $($groupTargetOU) -PrimarySmtpAddress $($primaryEmail)"
 
 if(($GroupSendAsMember | Measure-Object).Count -ne 0) {
 
@@ -167,6 +178,7 @@ if(($GroupSendAsMember | Measure-Object).Count -ne 0) {
 
     Start-Sleep -Seconds $sleepSeconds
 
+    # Hide SendAs from GAL
     Set-DistributionGroup -Identity $primaryEmail -HiddenFromAddressListsEnabled $true
 }
 else {
@@ -177,11 +189,12 @@ else {
 
     Start-Sleep -Seconds $sleepSeconds
 
+    # Hide SendAs from GAL
     Set-DistributionGroup -Identity $primaryEmail -HiddenFromAddressListsEnabled $true
 }
 
 # Add SendAs permission
-Write-Verbose "Add-ADPermission -Identity $($TeamMailboxName) -User $($groupName)"
+Write-Verbose -Message "Add-ADPermission -Identity $($TeamMailboxName) -User $($groupName)"
 
 Add-ADPermission -Identity $TeamMailboxName -User $groupName -ExtendedRights 'Send-As' | Out-Null
 
