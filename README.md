@@ -1,49 +1,46 @@
 # New-TeamMailbox.ps1
 Creates a new shared mailbox, security groups for full access and send-as permission and adds the security groups to the shared mailbox configuration.
 
-##Description
+## Description
 This scripts creates a new shared mailbox (aka team mailbox) and security groups for full access and and send-as delegation. Security groups are created using a naming convention.
 
-##Inputs
-TeamMailboxName
+## Parameters
+### TeamMailboxName
 Name attribute of the new team mailbox
 
-TeamMailboxDisplayName
+### TeamMailboxDisplayName
 Display name attribute of the new team mailbox
 
-TeamMailboxAlias
+### TeamMailboxAlias
 Alias attribute of the new team mailbox
 
-TeamMailboxSmtpAddress
+### TeamMailboxSmtpAddress
 Primary SMTP address attribute the new team mailbox
 
-DepartmentPrefix
+### DepartmentPrefix
 Department prefix for automatically generated security groups (optional)
 
-GroupFullAccessMembers
+### GroupFullAccessMembers
 String array containing full access members
 
-GroupFullAccessMembers
+### GroupFullAccessMembers
 String array containing send as members
 
-##Outputs
-None
-
-##Examples
+## Examples
 ```
 .\New-TeamMailbox.ps1 -TeamMailboxName "TM-Exchange Admins" -TeamMailboxDisplayName "Exchange Admins" -TeamMailboxAlias "TM-ExchangeAdmins" -TeamMailboxSmtpAddress "ExchangeAdmins@mcsmemail.de" -DepartmentPrefix "IT"
 ```
 Create a new team mailbox, empty full access and empty send-as security groups
 
 
-##TechNet Gallery
+## TechNet Gallery
 Find the script at TechNet Gallery
 * https://gallery.technet.microsoft.com/Create-a-new-Mailbox-with-1b02f6e7
 
-##Credits
+## Credits
 Written by: Thomas Stensitzki
 
-Stay connected:
+## Social
 
 * About: http://www.stensitzki.de
 * My Blog: http://justcantgetenough.granikos.eu
