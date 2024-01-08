@@ -2,6 +2,10 @@
 
 Creates a new shared mailbox, security groups for full access and send-as permission and adds the security groups to the shared mailbox configuration.
 
+## NOTE
+
+This repository is archived. You find the maintained release of this script [here](https://github.com/Apoc70/PowerShell-Scripts).
+
 ## Description
 
 This scripts creates a new shared mailbox (aka team mailbox) and security groups for full access and and send-as delegation. Security groups are created using a naming convention.

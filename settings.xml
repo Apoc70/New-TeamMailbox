@@ -13,6 +13,10 @@
 		<TargetOU>mcsmemail.de/IT/SharedMailboxes</TargetOU>
 	</AccountSettings>
 	<GeneralSettings>
-		<Sleep>10</Sleep>
+		<Sleep>60</Sleep>
+		<RemoteRoutingAddress>TENANT.mail.onmicrosoft.com</RemoteRoutingAddress>
 	</GeneralSettings>
+	<Extensions>
+		<extAttr14>AADSync</extAttr14>
+	</Extensions>
 </Settings>
